@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mis coordenadas</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#14171c;--mut:#667085;--ac:#0b6bcb;--bd:#e3e6eb;--err:#b42318;--ok:#12805c;--map:#eef3f8;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1216;--card:#181c22;--fg:#eceff3;--mut:#98a2b3;--ac:#5aa9ff;--bd:#2a3039;--err:#ff8a80;--ok:#4cd6a0;--map:#11161d}}
+:root[data-theme="dark"]{--bg:#0f1216;--card:#181c22;--fg:#eceff3;--mut:#98a2b3;--ac:#5aa9ff;--bd:#2a3039;--err:#ff8a80;--ok:#4cd6a0;--map:#11161d}
+html{color-scheme:light dark}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px}
+h1{font-size:1.45rem;margin:0 0 4px}h3{margin:0 0 8px;font-size:1rem}
+.sub{color:var(--mut);margin:0 0 16px;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,input,textarea{font:inherit;color:var(--fg)}
+button{border:1px solid var(--bd);background:var(--card);padding:9px 13px;border-radius:10px;cursor:pointer}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+input[type=text],input[type=password],textarea{width:100%;border:1px solid var(--bd);background:var(--bg);border-radius:10px;padding:9px}
+textarea{min-height:90px;font-family:ui-monospace,Menlo,monospace;font-size:.82rem}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px}
+.tabs button{white-space:nowrap}.tabs button.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.pane{display:none}.pane.on{display:block}
+pre{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:10px;overflow-x:auto;font-size:.8rem;margin:8px 0}
+#msg{margin-top:10px;color:var(--mut);min-height:1.5em;font-size:.92rem}#msg.e{color:var(--err)}
+.big{font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0 0;font-variant-numeric:tabular-nums}
+dt{color:var(--mut)}dd{margin:0}
+svg{width:100%;height:auto;display:block;border-radius:10px;background:var(--map);border:1px solid var(--bd)}
+.lg{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--mut);margin-top:8px}
+.lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<main>
+<h1>📍 Localizador de coordenadas</h1>
+<p class="sub">Seis métodos para obtener coordenadas y un mapa que dibuja todos los puntos.</p>
+
+<div class="card">
+  <svg id="map" viewBox="0 0 400 300" role="img" aria-label="Mapa de puntos"></svg>
+  <div class="lg"><span><i style="background:#0b6bcb"></i>GPS</span><span><i style="background:#e8590c"></i>IP</span><span><i style="background:#7048e8"></i>Wi‑Fi API</span><span><i style="background:#12805c"></i>Servidor</span><span><i style="background:#d6336c"></i>NMEA</span></div>
+  <div class="sub" style="margin:8px 0 0">Mapa vectorial sin teselas. Usa “Abrir en mapa” para ver calles.</div>
+</div>
+
+<div class="card" id="res" hidden>
+  <div class="big" id="coords">—</div>
+  <dl><dt>Método</dt><dd id="src">—</dd><dt>Precisión</dt><dd id="acc">—</dd><dt>Hora</dt><dd id="ts">—</dd><dt>Puntos</dt><dd id="n">0</dd></dl>
+  <div class="row" style="margin-top:12px">
+    <button id="copy">Copiar</button><button id="open">Abrir en mapa</button><button id="json">Copiar historial JSON</button><button id="clr">Borrar puntos</button>
+  </div>
+</div>
+<div id="msg">Elige un método y pulsa el botón.</div>
+
+<div class="card" style="margin-top:14px">
+<div class="tabs" id="tabs">
+  <button data-t="1" class="on">1 · GPS</button><button data-t="2">2 · IP</button><button data-t="3">3 · Wi‑Fi API</button>
+  <button data-t="4">4 · App nativa</button><button data-t="5">5 · Servidor</button><button data-t="6">6 · Hardware</button>
+</div>
+
+<div class="pane on" data-p="1">
+  <h3>API de Geolocalización del navegador</h3>
+  <div class="row"><button class="p" id="once">Obtener ubicación</button><button id="watch">Seguir en vivo</button><button id="stop" disabled>Detener</button></div>
+  <label class="sub" style="display:block;margin-top:8px"><input type="checkbox" id="hi" checked> Alta precisión (GPS)</label>
+</div>
+
+<div class="pane" data-p="2">
+  <h3>Geolocalización por IP</h3>
+  <p class="sub">Aproximada (ciudad). No pide permiso. Consulta ipapi.co.</p>
+  <button class="p" id="ipb">Ubicar por IP</button>
+</div>
+
+<div class="pane" data-p="3">
+  <h3>Google Geolocation API (Wi‑Fi y antenas)</h3>
+  <p class="sub">Necesita una API key propia. Se usa solo en tu navegador y no se guarda.</p>
+  <input type="password" id="key" placeholder="API key de Google" autocomplete="off">
+  <div class="row" style="margin-top:8px"><button class="p" id="gb">Consultar</button></div>
+</div>
+
+<div class="pane" data-p="4">
+  <h3>App nativa o híbrida (Capacitor)</h3>
+  <p class="sub">Para seguimiento en segundo plano. Código de ejemplo:</p>
+<pre>npm i @capacitor/geolocation
+import { Geolocation } from '@capacitor/geolocation';
+const p = await Geolocation.getCurrentPosition({
+  enableHighAccuracy: true });
+console.log(p.coords.latitude, p.coords.longitude);
+Geolocation.watchPosition({}, (pos) =&gt; { /* ... */ });</pre>
+  <p class="sub">También: Cordova, React Native (<code>react-native-geolocation-service</code>) o Flutter (<code>geolocator</code>).</p>
+</div>
+
+<div class="pane" data-p="5">
+  <h3>Rastreo con servidor</h3>
+  <p class="sub">Tus puntos se difunden por BroadcastChannel: abre esta página en otra pestaña del mismo navegador para ver el receptor. Para un servidor real, conecta un WebSocket que envíe y reciba JSON <code>{"lat":…,"lon":…}</code>.</p>
+  <input type="text" id="ws" placeholder="wss://tu-servidor.com/ruta">
+  <div class="row" style="margin-top:8px"><button class="p" id="wsb">Conectar</button><button id="wss">Enviar último punto</button></div>
+</div>
+
+<div class="pane" data-p="6">
+  <h3>Hardware GPS (NMEA)</h3>
+  <p class="sub">Pega sentencias NMEA de un módulo (ESP32, Arduino, SIM7000, Traccar…). Se leen GGA y RMC.</p>
+  <textarea id="nmea" placeholder="$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47"></textarea>
+  <div class="row" style="margin-top:8px"><button class="p" id="nb">Interpretar</button><button id="ns">Cargar ejemplo</button></div>
+</div>
+</div>
+<p class="sub">La ubicación se procesa en tu navegador. Los métodos 2, 3 y WebSocket requieren red hacia otros sitios y HTTPS.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const COL={GPS:"#0b6bcb",IP:"#e8590c","Wi‑Fi API":"#7048e8",Servidor:"#12805c",NMEA:"#d6336c"};
+let pts=[],wid=null,ws=null,bc=null;
+try{bc=new BroadcastChannel("coords-app")}catch(e){}
+const msg=(t,e)=>{$("msg").textContent=t;$("msg").className=e?"e":""};
+document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".pane").forEach(p=>p.classList.toggle("on",p.dataset.p===b.dataset.t))});
+
+function add(lat,lon,acc,src,remote){
+  if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){msg("Coordenadas no válidas.",true);return}
+  const p={lat,lon,acc:acc||0,src,t:Date.now()};pts.push(p);if(pts.length>200)pts.shift();
+  if(!remote){
+    try{bc&&bc.postMessage(p)}catch(e){}
+    try{ws&&ws.readyState===1&&ws.send(JSON.stringify({lat,lon,acc,src}))}catch(e){}
+  }
+  show();draw();
+}
+function show(){
+  const p=pts[pts.length-1];if(!p){$("res").hidden=true;return}
+  $("res").hidden=false;
+  $("coords").textContent=p.lat.toFixed(6)+", "+p.lon.toFixed(6);
+  $("src").textContent=p.src;$("acc").textContent=p.acc?"± "+Math.round(p.acc)+" m":"No disponible";
+  $("ts").textContent=new Date(p.t).toLocaleString();$("n").textContent=pts.length;
+}
+function draw(){
+  const s=$("map");let h='';
+  const L=pts[pts.length-1];
+  if(!L){s.innerHTML='<text x="200" y="150" text-anchor="middle" fill="currentColor" opacity=".5" font-size="13">Sin puntos todavía</text>';return}
+  const kx=111320*Math.cos(L.lat*Math.PI/180),ky=110540;
+  const xy=p=>[(p.lon-L.lon)*kx,-(p.lat-L.lat)*ky];
+  let R=Math.max(L.acc*1.2,50);
+  pts.forEach(p=>{const[x,y]=xy(p);R=Math.max(R,Math.hypot(x,y)*1.2,p.acc*1.1)});
+  const k=130/R,cx=200,cy=150;
+  const nice=[1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000,100000,500000,1000000,5000000];
+  const sb=nice.find(v=>v*k>=60)||nice[nice.length-1];
+  for(let i=1;i<=3;i++)h+=`<circle cx="${cx}" cy="${cy}" r="${i*43.3}" fill="none" stroke="currentColor" opacity=".12"/>`;
+  h+=`<line x1="${cx}" y1="10" x2="${cx}" y2="290" stroke="currentColor" opacity=".1"/><line x1="10" y1="${cy}" x2="390" y2="${cy}" stroke="currentColor" opacity=".1"/>`;
+  const path=pts.map(p=>{const[x,y]=xy(p);return(cx+x*k).toFixed(1)+","+(cy+y*k).toFixed(1)}).join(" ");
+  if(pts.length>1)h+=`<polyline points="${path}" fill="none" stroke="currentColor" opacity=".35" stroke-dasharray="4 3"/>`;
+  pts.forEach((p,i)=>{const[x,y]=xy(p),px=cx+x*k,py=cy+y*k,c=COL[p.src]||"#888",last=i===pts.length-1;
+    if(p.acc&&last)h+=`<circle cx="${px}" cy="${py}" r="${Math.max(p.acc*k,3)}" fill="${c}" opacity=".15" stroke="${c}"/>`;
+    h+=`<circle cx="${px}" cy="${py}" r="${last?6:3.5}" fill="${c}" stroke="#fff" stroke-width="${last?2:1}"/>`});
+  h+=`<g transform="translate(370,32)"><path d="M0-18L7 4L0 0L-7 4Z" fill="currentColor" opacity=".7"/><text y="18" text-anchor="middle" font-size="11" fill="currentColor">N</text></g>`;
+  const w=sb*k;
+  h+=`<line x1="14" y1="280" x2="${14+w}" y2="280" stroke="currentColor" stroke-width="2"/><text x="14" y="270" font-size="11" fill="currentColor">${sb>=1000?sb/1000+" km":sb+" m"}</text>`;
+  s.innerHTML=h;
+}
+/* 1 · GPS */
+const gok=()=>navigator.geolocation?true:(msg("Tu navegador no soporta geolocalización.",true),false);
+const gerr=e=>msg({1:"Permiso denegado. Actívalo en los ajustes del navegador.",2:"Posición no disponible. Revisa GPS o conexión.",3:"Tiempo de espera agotado."}[e.code]||e.message,true);
+const gpos=p=>{add(p.coords.latitude,p.coords.longitude,p.coords.accuracy,"GPS");msg("Ubicación actualizada.")};
+const gopt=()=>({enableHighAccuracy:$("hi").checked,timeout:15000,maximumAge:0});
+$("once").onclick=()=>{if(!gok())return;msg("Buscando ubicación…");navigator.geolocation.getCurrentPosition(gpos,gerr,gopt())};
+$("watch").onclick=()=>{if(!gok()||wid!==null)return;msg("Siguiendo ubicación…");wid=navigator.geolocation.watchPosition(gpos,gerr,gopt());$("watch").disabled=true;$("stop").disabled=false};
+$("stop").onclick=()=>{if(wid!==null)navigator.geolocation.clearWatch(wid);wid=null;$("watch").disabled=false;$("stop").disabled=true;msg("Seguimiento detenido.")};
+/* 2 · IP */
+$("ipb").onclick=async()=>{msg("Consultando IP…");
+  try{const r=await fetch("https://ipapi.co/json/");const d=await r.json();
+    add(+d.latitude,+d.longitude,5000,"IP");msg("Ubicación aproximada: "+(d.city||"")+" "+(d.country_name||""))}
+  catch(e){msg("No se pudo consultar el servicio de IP.",true)}};
+/* 3 · Google Geolocation */
+$("gb").onclick=async()=>{const k=$("key").value.trim();if(!k){msg("Escribe tu API key.",true);return}
+  msg("Consultando Google…");
+  try{const r=await fetch("https://www.googleapis.com/geolocation/v1/geolocate?key="+encodeURIComponent(k),
+    {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({considerIp:true})});
+    const d=await r.json();if(d.error)throw new Error(d.error.message);
+    add(d.location.lat,d.location.lng,d.accuracy,"Wi‑Fi API");msg("Ubicación obtenida.")}
+  catch(e){msg("Error: "+e.message,true)}};
+/* 5 · Servidor */
+if(bc)bc.onmessage=e=>{const p=e.data;if(p&&isFinite(p.lat)){add(p.lat,p.lon,p.acc,"Servidor",true);msg("Punto recibido desde otra pestaña.")}};
+$("wsb").onclick=()=>{const u=$("ws").value.trim();if(!/^wss?:\/\//.test(u)){msg("Escribe una URL ws:// o wss://",true);return}
+  try{ws&&ws.close();ws=new WebSocket(u);
+    ws.onopen=()=>msg("WebSocket conectado.");
+    ws.onerror=()=>msg("Error de WebSocket.",true);
+    ws.onmessage=e=>{try{const d=JSON.parse(e.data);add(+d.lat,+d.lon,d.acc,"Servidor",true)}catch(x){}}}
+  catch(e){msg("No se pudo conectar: "+e.message,true)}};
+$("wss").onclick=()=>{const p=pts[pts.length-1];if(!p||!ws||ws.readyState!==1){msg("Conecta el WebSocket y obtén un punto primero.",true);return}
+  ws.send(JSON.stringify({lat:p.lat,lon:p.lon,acc:p.acc,src:p.src}));msg("Punto enviado.")};
+/* 6 · NMEA */
+const nd=(v,h)=>{if(!v)return NaN;const d=v.indexOf(".")-2,x=+v.slice(0,d)+ +v.slice(d)/60;return(h==="S"||h==="W")?-x:x};
+$("ns").onclick=()=>{$("nmea").value="$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A"};
+$("nb").onclick=()=>{let n=0;
+  $("nmea").value.split(/\r?\n/).forEach(l=>{const f=l.trim().split("*")[0].split(",");let la,lo,ac=0;
+    if(/GGA$/.test(f[0])&&+f[6]>0){la=nd(f[2],f[3]);lo=nd(f[4],f[5]);ac=(+f[8]||1)*5}
+    else if(/RMC$/.test(f[0])&&f[2]==="A"){la=nd(f[3],f[4]);lo=nd(f[5],f[6])}
+    if(isFinite(la)&&isFinite(lo)){add(la,lo,ac,"NMEA");n++}});
+  msg(n?n+" punto(s) leído(s).":"No se encontraron sentencias GGA/RMC con fix válido.",!n)};
+/* acciones */
+$("copy").onclick=async()=>{const p=pts[pts.length-1];if(!p)return;try{await navigator.clipboard.writeText(p.lat+", "+p.lon);msg("Coordenadas copiadas.")}catch(e){msg("No se pudo copiar: "+p.lat+", "+p.lon,true)}};
+$("json").onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify(pts,null,1));msg("Historial copiado.")}catch(e){msg("No se pudo copiar.",true)}};
+$("open").onclick=()=>{const p=pts[pts.length-1];if(p)window.open("https://www.openstreetmap.org/?mlat="+p.lat+"&mlon="+p.lon+"#map=16/"+p.lat+"/"+p.lon,"_blank","noopener")};
+$("clr").onclick=()=>{pts=[];show();draw();msg("Puntos borrados.")};
+draw();
+</script>
+</body>
+                                                                                    </html>
