@@ -29,7 +29,7 @@ pre{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:1
 #msg{margin-top:10px;color:var(--mut);min-height:1.5em;font-size:.92rem}#msg.e{color:var(--err)}
 .big{font-size:1.5rem;font-weight:600;font-variant-numeric:tabular-nums;word-break:break-all}
 dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0 0;font-variant-numeric:tabular-nums}
-dt{color:var(--mut)}dd{margin:0}
+dt{color:var(--mut)}dd{margin:0;word-break:break-all}
 svg{width:100%;height:auto;display:block;border-radius:10px;background:var(--map);border:1px solid var(--bd)}
 .lg{display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:var(--mut);margin-top:8px}
 .lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
@@ -43,20 +43,25 @@ a{color:var(--ac)}
 
 <div class="card">
   <svg id="map" viewBox="0 0 400 300" role="img" aria-label="Mapa de puntos"></svg>
+  <iframe id="osm" title="Mapa de calles" hidden loading="lazy" style="width:100%;height:300px;border:1px solid var(--bd);border-radius:10px;margin-top:10px"></iframe>
   <div class="lg"><span><i style="background:#0b6bcb"></i>GPS</span><span><i style="background:#e8590c"></i>IP</span><span><i style="background:#7048e8"></i>Wi‑Fi API</span><span><i style="background:#12805c"></i>Servidor</span><span><i style="background:#d6336c"></i>NMEA</span></div>
-  <div class="sub" style="margin:8px 0 0">Mapa vectorial sin teselas. Usa “Abrir en mapa” para ver calles.</div>
+  <div class="sub" style="margin:8px 0 0">Arriba, mapa vectorial con todos los puntos. Abajo, mapa de calles de OpenStreetMap con el último punto (requiere internet).</div>
 </div>
 
 <div class="card" id="res" hidden>
   <div class="big" id="coords">—</div>
-  <dl><dt>Método</dt><dd id="src">—</dd><dt>Precisión</dt><dd id="acc">—</dd><dt>Hora</dt><dd id="ts">—</dd><dt>Puntos</dt><dd id="n">0</dd></dl>
+  <dl><dt>Método</dt><dd id="src">—</dd><dt>Precisión</dt><dd id="acc">—</dd><dt>Hora</dt><dd id="ts">—</dd><dt>Dispositivo</dt><dd id="dv">—</dd><dt>Puntos</dt><dd id="n">0</dd></dl>
   <div class="row" style="margin-top:12px">
     <button id="copy">Copiar</button><button id="open">Abrir en mapa</button><button id="json">Copiar historial JSON</button><button id="clr">Borrar puntos</button>
   </div>
 </div>
 <div id="msg">Elige un método y pulsa el botón.</div>
 
-<div class="card" style="margin-top:14px">
+<div class="card" style="margin-top:14px"><h3>📱 Datos de este dispositivo</h3>
+<dl><dt>ID de rastreo</dt><dd id="d_id">—</dd><dt>Sistema</dt><dd id="d_os">—</dd><dt>Batería</dt><dd id="d_bat">—</dd><dt>Red</dt><dd id="d_net">—</dd><dt>IP pública</dt><dd id="d_ip">Usa el método 2</dd><dt>Pantalla</dt><dd id="d_scr">—</dd><dt>Zona horaria</dt><dd id="d_tz">—</dd></dl>
+<p class="sub" style="margin:10px 0 0">El navegador no entrega IMEI, MAC ni número de serie. El ID de rastreo es un identificador único que se guarda en este navegador, y cada punto lo lleva junto con la batería y la red.</p></div>
+
+<div class="card">
 <div class="tabs" id="tabs">
   <button data-t="1" class="on">1 · GPS</button><button data-t="2">2 · IP</button><button data-t="3">3 · Wi‑Fi API</button>
   <button data-t="4">4 · App nativa</button><button data-t="5">5 · Servidor</button><button data-t="6">6 · Hardware</button>
@@ -119,12 +124,33 @@ document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>{
   document.querySelectorAll("#tabs button").forEach(x=>x.classList.toggle("on",x===b));
   document.querySelectorAll(".pane").forEach(p=>p.classList.toggle("on",p.dataset.p===b.dataset.t))});
 
-function add(lat,lon,acc,src,remote){
+/* Datos del dispositivo */
+let pubIp=null,bat=null;
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+let devId=store.get("devId");
+if(!devId){devId=crypto.randomUUID?crypto.randomUUID():Date.now().toString(16)+Math.random().toString(16).slice(2);store.set("devId",devId)}
+const cn=navigator.connection||{};
+function devInfo(){return{id:devId,bat:bat?Math.round(bat.level*100):null,chg:bat?bat.charging:null,net:cn.effectiveType||null}}
+function renderDev(){
+  const u=navigator.userAgentData,i=devInfo();
+  $("d_id").textContent=i.id;
+  $("d_os").textContent=((u&&u.platform)||navigator.platform||"Desconocido")+((u&&u.mobile)?" · móvil":"");
+  $("d_bat").textContent=i.bat==null?"No disponible en este navegador":i.bat+"%"+(i.chg?" (cargando)":"");
+  $("d_net").textContent=i.net?i.net+(cn.downlink?" · "+cn.downlink+" Mbps":""):"No disponible";
+  $("d_ip").textContent=pubIp||"Usa el método 2";
+  $("d_scr").textContent=screen.width+"×"+screen.height+" @"+(window.devicePixelRatio||1)+"x";
+  $("d_tz").textContent=Intl.DateTimeFormat().resolvedOptions().timeZone||"—";
+}
+if(navigator.getBattery)navigator.getBattery().then(b=>{bat=b;["levelchange","chargingchange"].forEach(e=>b.addEventListener(e,renderDev));renderDev()}).catch(()=>{});
+if(cn.addEventListener)cn.addEventListener("change",renderDev);
+renderDev();
+
+function add(lat,lon,acc,src,remote,dev){
   if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180){msg("Coordenadas no válidas.",true);return}
-  const p={lat,lon,acc:acc||0,src,t:Date.now()};pts.push(p);if(pts.length>200)pts.shift();
+  const p={lat,lon,acc:acc||0,src,t:Date.now(),dev:dev||devInfo()};pts.push(p);if(pts.length>200)pts.shift();
   if(!remote){
     try{bc&&bc.postMessage(p)}catch(e){}
-    try{ws&&ws.readyState===1&&ws.send(JSON.stringify({lat,lon,acc,src}))}catch(e){}
+    try{ws&&ws.readyState===1&&ws.send(JSON.stringify({lat,lon,acc,src,dev:p.dev}))}catch(e){}
   }
   show();draw();
 }
@@ -134,10 +160,18 @@ function show(){
   $("coords").textContent=p.lat.toFixed(6)+", "+p.lon.toFixed(6);
   $("src").textContent=p.src;$("acc").textContent=p.acc?"± "+Math.round(p.acc)+" m":"No disponible";
   $("ts").textContent=new Date(p.t).toLocaleString();$("n").textContent=pts.length;
+  $("dv").textContent=p.dev?p.dev.id.slice(0,8)+(p.dev.bat!=null?" · 🔋"+p.dev.bat+"%":"")+(p.dev.net?" · "+p.dev.net:""):"—";
+}
+function osm(L){
+  const f=$("osm");if(!L){f.hidden=true;return}
+  const dy=Math.max(L.acc||0,150)*2.5/110540,dx=dy/Math.cos(L.lat*Math.PI/180);
+  const u="https://www.openstreetmap.org/export/embed.html?bbox="+[L.lon-dx,L.lat-dy,L.lon+dx,L.lat+dy].join(",")+"&layer=mapnik&marker="+L.lat+","+L.lon;
+  if(f.dataset.u!==u){f.dataset.u=u;f.src=u}
+  f.hidden=false;
 }
 function draw(){
   const s=$("map");let h='';
-  const L=pts[pts.length-1];
+  const L=pts[pts.length-1];osm(L);
   if(!L){s.innerHTML='<text x="200" y="150" text-anchor="middle" fill="currentColor" opacity=".5" font-size="13">Sin puntos todavía</text>';return}
   const kx=111320*Math.cos(L.lat*Math.PI/180),ky=110540;
   const xy=p=>[(p.lon-L.lon)*kx,-(p.lat-L.lat)*ky];
@@ -169,7 +203,7 @@ $("stop").onclick=()=>{if(wid!==null)navigator.geolocation.clearWatch(wid);wid=n
 /* 2 · IP */
 $("ipb").onclick=async()=>{msg("Consultando IP…");
   try{const r=await fetch("https://ipapi.co/json/");const d=await r.json();
-    add(+d.latitude,+d.longitude,5000,"IP");msg("Ubicación aproximada: "+(d.city||"")+" "+(d.country_name||""))}
+    pubIp=d.ip||null;add(+d.latitude,+d.longitude,5000,"IP");renderDev();msg("Ubicación aproximada: "+(d.city||"")+" "+(d.country_name||""))}
   catch(e){msg("No se pudo consultar el servicio de IP.",true)}};
 /* 3 · Google Geolocation */
 $("gb").onclick=async()=>{const k=$("key").value.trim();if(!k){msg("Escribe tu API key.",true);return}
@@ -180,15 +214,15 @@ $("gb").onclick=async()=>{const k=$("key").value.trim();if(!k){msg("Escribe tu A
     add(d.location.lat,d.location.lng,d.accuracy,"Wi‑Fi API");msg("Ubicación obtenida.")}
   catch(e){msg("Error: "+e.message,true)}};
 /* 5 · Servidor */
-if(bc)bc.onmessage=e=>{const p=e.data;if(p&&isFinite(p.lat)){add(p.lat,p.lon,p.acc,"Servidor",true);msg("Punto recibido desde otra pestaña.")}};
+if(bc)bc.onmessage=e=>{const p=e.data;if(p&&isFinite(p.lat)){add(p.lat,p.lon,p.acc,"Servidor",true,p.dev);msg("Punto recibido desde otra pestaña.")}};
 $("wsb").onclick=()=>{const u=$("ws").value.trim();if(!/^wss?:\/\//.test(u)){msg("Escribe una URL ws:// o wss://",true);return}
   try{ws&&ws.close();ws=new WebSocket(u);
     ws.onopen=()=>msg("WebSocket conectado.");
     ws.onerror=()=>msg("Error de WebSocket.",true);
-    ws.onmessage=e=>{try{const d=JSON.parse(e.data);add(+d.lat,+d.lon,d.acc,"Servidor",true)}catch(x){}}}
+    ws.onmessage=e=>{try{const d=JSON.parse(e.data);add(+d.lat,+d.lon,d.acc,"Servidor",true,d.dev)}catch(x){}}}
   catch(e){msg("No se pudo conectar: "+e.message,true)}};
 $("wss").onclick=()=>{const p=pts[pts.length-1];if(!p||!ws||ws.readyState!==1){msg("Conecta el WebSocket y obtén un punto primero.",true);return}
-  ws.send(JSON.stringify({lat:p.lat,lon:p.lon,acc:p.acc,src:p.src}));msg("Punto enviado.")};
+  ws.send(JSON.stringify({lat:p.lat,lon:p.lon,acc:p.acc,src:p.src,dev:p.dev}));msg("Punto enviado.")};
 /* 6 · NMEA */
 const nd=(v,h)=>{if(!v)return NaN;const d=v.indexOf(".")-2,x=+v.slice(0,d)+ +v.slice(d)/60;return(h==="S"||h==="W")?-x:x};
 $("ns").onclick=()=>{$("nmea").value="$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\n$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A"};
@@ -206,4 +240,4 @@ $("clr").onclick=()=>{pts=[];show();draw();msg("Puntos borrados.")};
 draw();
 </script>
 </body>
-                                                                                    </html>
+</html>
